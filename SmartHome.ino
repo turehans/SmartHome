@@ -4,16 +4,26 @@
 #include <ESPmDNS.h>
 #include <DHT.h>
 
+
 const char *ssid = "Room8"; 
 const char *password = "Arduino8";
-const int dhtSensorPort = 4;
+const int dhtSensorPort = 23;
+const int touch_pin = 4;
+const int light_pin = 2; 
+const int touch_threshold = 30;
+
+bool lightOn = false;
+bool touched = false;
+
 
 WebServer server(80);
 DHT dht(dhtSensorPort, DHT22);
 
 void handleRoot() {
-  char msg[1500];
+ char msg[2000];  // Increased size for added content
 
+  const char* lightStatus = lightOn ? "ON" : "OFF";
+  const char* lightColor = lightOn ? "#00cc44" : "#999999";
   snprintf(msg, 1500,
            "<html>\
   <head>\
@@ -43,9 +53,14 @@ void handleRoot() {
         <span>%.2f</span>\
         <sup class='units'>&percnt;</sup>\
       </p>\
+      <p>\
+        <i class='fas fa-lightbulb' style='color:%s;'></i>\
+        <span class='dht-labels'>Light Status</span>\
+        <span>%s</span>\
+      </p>\ 
   </body>\
 </html>",
-           readDHTTemperature(), readDHTHumidity()
+           readDHTTemperature(), readDHTHumidity(), lightColor, lightStatus
           );
   server.send(200, "text/html", msg);
 }
@@ -78,11 +93,29 @@ void setup(void) {
 
   server.begin();
   Serial.println("HTTP server started");
+
+  pinMode(light_pin, OUTPUT);
+  digitalWrite(light_pin, LOW); // start with light off
+
+
 }
 
 void loop(void) {
   server.handleClient();
   delay(2);//allow the cpu to switch to other tasks
+  int touchValue = touchRead(touch_pin);
+
+  if (touchValue < touch_threshold && !touched) {
+    touched = true;             // Debounce: mark touch started
+    lightOn = !lightOn;         // Toggle light state
+    digitalWrite(light_pin, lightOn ? HIGH : LOW);
+    Serial.println(lightOn ? "Light ON" : "Light OFF");
+  } else if (touchValue >= touch_threshold && touched) {
+    touched = false;            // Reset when finger lifted
+  }
+
+  delay(50); // small debounce delay
+
 }
 
 
